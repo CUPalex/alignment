@@ -35,20 +35,23 @@ class AlignmentComputation(ABC):
 
                 preds = np.dot(test_model[layer, :, :], weights)
                 corrs[layer].append(np.mean(zscore(preds) * zscore(test_brain), axis=0))
+                logging.info(f"correlations for layer {layer} fold {fold}: {corrs[layer]}")
                 all_preds[layer].append(preds)
                 del weights
 
-        corrs = np.stack(corrs)
-        all_preds = np.stack(all_preds)
+                if fold == n_folds - 1:
+                    corrs[layer] = np.hstack(corrs[layer])
+                    all_preds[layer] = np.hstack(all_preds[layer])
 
-        return corrs, np.vstack(all_preds)
+        return corrs, all_preds
     
     def regression_find_lambda(self, X, Y, X_test, Y_test, lambdas):
         error = np.zeros((len(lambdas), Y.shape[1]))
         for idx, lmbda in enumerate(lambdas):
             model = Ridge(alpha=lmbda, fit_intercept=False, solver="cholesky")
             model.fit(X, Y)
-            error[idx] = 1 - r2_score(Y_test, model.predict(X_test))
+            error[idx] = 1 - r2_score(Y_test, model.predict(X_test), multioutput="raw_values")
+            logging.info(f"Alignment Computation: errors in regression for lambda idx={idx}: {error[idx]}")
         return error
     
     def regression(self, X, Y, lmbda):
@@ -68,6 +71,7 @@ class AlignmentComputation(ABC):
         argmin_lambda = np.argmin(errors_for_lambdas, axis=0)
         weights = np.zeros((X.shape[1], Y.shape[1]))
         for idx_lambda in range(lambdas.shape[0]):
+            logging.info(f"{idx_lambda}th lambda is the best for {(argmin_lambda == idx_lambda).sum()} voxels")
             idx_vox = (argmin_lambda == idx_lambda)
             if idx_vox.sum() > 0:
                 weights[:,idx_vox] = self.regression(X, Y[:,idx_vox], lambdas[idx_lambda])
