@@ -12,7 +12,7 @@ class LinguisticFeatures(ABC):
                             "tense", "subject_number", "object_number"]
     RANDOM = ["random_binary"]
     WORD_LEVEL_FEATURES = ["pos_tags", "smallest_constituents", "word_depth"]
-    ALL_FEATURES = SENT_LEVEL_FEATURES + RANDOM
+    ALL_FEATURES = SENT_LEVEL_FEATURES + RANDOM + WORD_LEVEL_FEATURES
 
     def __init__(self, words_file="/proj/inductive-bias.shadow/abakalov.data/words_fmri.npy"):
         nltk.download("punkt")
@@ -130,7 +130,7 @@ class LinguisticFeatures(ABC):
     def _get_features_per_sent(self):
         features_list = []
         for sent in self.parsed_text.sentences:
-            features_list.append(LinguisticFeatures.get_features(sent))
+            features_list.append(LinguisticFeatures.get_features_for_sent(sent))
         return features_list
 
     @staticmethod
@@ -219,7 +219,7 @@ class LinguisticFeatures(ABC):
                 for item in features_per_sent
             ]
             Y_per_word = []
-            for i, sent in self.parsed_text.sentences:
+            for i, sent in enumerate(self.parsed_text.sentences):
                 Y_per_word.extend([Y_per_sent[i]] * len(sent.words))
             return np.array(Y_per_word)
         if feature in self.RANDOM:
@@ -228,8 +228,8 @@ class LinguisticFeatures(ABC):
         if feature in self.WORD_LEVEL_FEATURES:
             features_per_sent = self._get_features_per_sent()
             Y_per_word = [
-                self.FEATURE_TO_CLASS_GET_METHOD[feature](item[feature])
-                for features_arr in features_per_sent for item in features_arr
+                self.FEATURE_TO_CLASS_GET_METHOD[feature](item)
+                for features_arr in features_per_sent for item in features_arr[feature]
             ]
             return np.array(Y_per_word)
         
