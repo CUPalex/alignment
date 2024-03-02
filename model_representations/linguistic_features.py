@@ -10,6 +10,9 @@ import stanza
 class LinguisticFeatures(ABC):
     SENT_LEVEL_FEATURES = ["sentence_length", "tree_depth", "top_constituents",
                             "tense", "subject_number", "object_number"]
+    RANDOM = ["random_binary"]
+    WORD_LEVEL_FEATURES = ["pos_tags", "smallest_constituents", "word_depth"]
+    ALL_FEATURES = SENT_LEVEL_FEATURES + RANDOM
 
     def __init__(self, words_file="/proj/inductive-bias.shadow/abakalov.data/words_fmri.npy"):
         nltk.download("punkt")
@@ -120,7 +123,6 @@ class LinguisticFeatures(ABC):
             "object_number": obj_num,
 
             "pos_tags": [word.upos for word in parsed_sent.words],
-            "deprel": [word.deprel for word in parsed_sent.words],
             "smallest_constituents": smallest_constituents,
             "word_depth": word_depth
         }
@@ -169,25 +171,66 @@ class LinguisticFeatures(ABC):
             return 0
         return 1
     
+    @staticmethod
+    def feature_to_class_pos_tags(feature):
+        if str(feature) == "VERB":
+            return 0
+        if str(feature) == "NOUN":
+            return 1
+        if str(feature) == "PRON":
+            return 2
+        if str(feature) == "ADP":
+            return 3
+        return 4
+    
+    @staticmethod
+    def feature_to_class_smallest_constituents(feature):
+        if str(feature) == "NP":
+            return 0
+        return 1
+    
+    @staticmethod
+    def feature_to_class_word_depth(feature):
+        if feature <= 1:
+            return 0
+        if feature <= 3:
+            return 1
+        return 2
+    
     FEATURE_TO_CLASS_GET_METHOD = {
         "sentence_length": feature_to_class_sentence_length,
         "tree_depth": feature_to_class_tree_depth,
         "top_constituents": feature_to_class_top_constituents,
         "tense": feature_to_class_tense,
         "subject_number": feature_to_class_subject_number,
-        "object_number": feature_to_class_object_number
+        "object_number": feature_to_class_object_number,
+
+        "pos_tags": feature_to_class_pos_tags,
+        "smallest_constituents": feature_to_class_smallest_constituents,
+        "word_depth": feature_to_class_word_depth
     }
 
     def get_regression_targets(self, feature):
-        assert feature in self.SENT_LEVEL_FEATURES
-        features_per_sent = self._get_features_per_sent()
-        Y_per_sent = [
-            self.FEATURE_TO_CLASS_GET_METHOD[feature](item[feature])
-            for item in features_per_sent
-        ]
-        Y_per_word = []
-        for i, sent in self.parsed_text.sentences:
-            Y_per_word.extend([Y_per_sent[i]] * len(sent.words))
-        return np.array(Y_per_word)
+        assert feature in self.ALL_FEATURES
+        if feature in self.SENT_LEVEL_FEATURES:
+            features_per_sent = self._get_features_per_sent()
+            Y_per_sent = [
+                self.FEATURE_TO_CLASS_GET_METHOD[feature](item[feature])
+                for item in features_per_sent
+            ]
+            Y_per_word = []
+            for i, sent in self.parsed_text.sentences:
+                Y_per_word.extend([Y_per_sent[i]] * len(sent.words))
+            return np.array(Y_per_word)
+        if feature in self.RANDOM:
+            total_num_words = sum([len(sent.words) for sent in self.parsed_text.sentences])
+            return np.random.randint(0, 2, size=total_num_words)
+        if feature in self.WORD_LEVEL_FEATURES:
+            features_per_sent = self._get_features_per_sent()
+            Y_per_word = [
+                self.FEATURE_TO_CLASS_GET_METHOD[feature](item[feature])
+                for features_arr in features_per_sent for item in features_arr
+            ]
+            return np.array(Y_per_word)
         
 

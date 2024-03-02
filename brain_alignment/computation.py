@@ -13,22 +13,27 @@ class AlignmentComputation(ABC):
     def __init__(self) -> None:
         pass
 
-    def run(self, data: HarryPotterData, subject: str, n_folds: int, num_delays: int):
+    def run(self, data: HarryPotterData, subject: str, n_folds: int, num_delays: int, layers=None):
         logging.info("Start run")
         data.split_by_folds(n_folds, num_delays)
         all_preds = {}
+        all_tests = {}
         corrs = {}
         
         for fold in range(n_folds):
             logging.info(f"Start fold {fold}")
             train_brain, test_brain, train_model, test_model = data.get_brain_and_model_repr_for_regression(
                 fold, subject, skip_between=5, num_delays=num_delays, use_pca=True)
-
-            for layer in range(train_model.shape[0]):
+            
+            layers_to_compute = list(range(train_model.shape[0]))
+            if layers is not None:
+                layers_to_compute = layers
+            for layer in layers_to_compute:
                 logging.info(f"Start layer {layer} in fold {fold}")
                 if fold == 0:
                     corrs[layer] = []
                     all_preds[layer] = []
+                    all_tests[layer] = []
 
                 weights, chosen_lambdas = self.cross_val_ridge(
                     train_model[layer, :, :], train_brain, n_splits = 10, lambdas = np.array([10**i for i in range(-6,10)]))
@@ -37,13 +42,16 @@ class AlignmentComputation(ABC):
                 corrs[layer].append(np.mean(zscore(preds) * zscore(test_brain), axis=0))
                 logging.info(f"correlations for layer {layer} fold {fold}: {corrs[layer]}")
                 all_preds[layer].append(preds)
+                all_tests[layer].append(test_brain)
+                logging.info(f"shapes preds: {preds.shape}, tests: {test_brain.shape}")
                 del weights
 
                 if fold == n_folds - 1:
                     corrs[layer] = np.hstack(corrs[layer])
-                    all_preds[layer] = np.hstack(all_preds[layer])
+                    all_preds[layer] = np.vstack(all_preds[layer])
+                    all_tests[layer] = np.vstack(all_tests[layer])
 
-        return corrs, all_preds
+        return corrs, all_preds, all_tests
     
     def regression_find_lambda(self, X, Y, X_test, Y_test, lambdas):
         error = np.zeros((len(lambdas), Y.shape[1]))
@@ -51,7 +59,7 @@ class AlignmentComputation(ABC):
             model = Ridge(alpha=lmbda, fit_intercept=False, solver="cholesky")
             model.fit(X, Y)
             error[idx] = 1 - r2_score(Y_test, model.predict(X_test), multioutput="raw_values")
-            logging.info(f"Alignment Computation: errors in regression for lambda idx={idx}: {error[idx]}")
+            logging.debug(f"Alignment Computation: errors in regression for lambda idx={idx}: {error[idx]}")
         return error
     
     def regression(self, X, Y, lmbda):
