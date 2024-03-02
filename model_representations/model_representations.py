@@ -31,7 +31,7 @@ class ModelRepresentations(ABC):
         self.context_len = context_len
         self.model_step = model_step
         self.save_dir = Path(save_dir)
-        save_dir.mkdir(parents=True, exist_ok=True)
+        self.save_dir.mkdir(parents=True, exist_ok=True)
 
         self.model = GPTNeoXForCausalLM.from_pretrained(
             "EleutherAI/pythia-160m",

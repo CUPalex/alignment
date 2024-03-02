@@ -125,7 +125,7 @@ class LinguisticFeatures(ABC):
             "word_depth": word_depth
         }
     
-    def _get_features(self):
+    def _get_features_per_sent(self):
         features_list = []
         for sent in self.parsed_text.sentences:
             features_list.append(LinguisticFeatures.get_features(sent))
@@ -180,11 +180,14 @@ class LinguisticFeatures(ABC):
 
     def get_regression_targets(self, feature):
         assert feature in self.SENT_LEVEL_FEATURES
-        features_list = self._get_features()
-        Y = [
+        features_per_sent = self._get_features_per_sent()
+        Y_per_sent = [
             self.FEATURE_TO_CLASS_GET_METHOD[feature](item[feature])
-            for item in features_list
+            for item in features_per_sent
         ]
-        return Y
+        Y_per_word = []
+        for i, sent in self.parsed_text.sentences:
+            Y_per_word.extend([Y_per_sent[i]] * len(sent.words))
+        return np.array(Y_per_word)
         
 
