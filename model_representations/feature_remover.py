@@ -12,18 +12,19 @@ from alignment.model_representations.linguistic_features import LinguisticFeatur
 from alignment.model_representations.model_representations import ModelRepresentations
 
 class FeatureRemover(ABC):
-    def __init__(self, words_file, representations_folder, layer):
+    def __init__(self, words_file):
         self.feature_getter = LinguisticFeatures(words_file)
-        self.representations = np.load(str(Path(representations_folder).joinpath("representations.npy")))[layer, :, :]
-        with open(Path(representations_folder).joinpath("words_skipped.json"), "r", encoding="utf-8") as file:
-            self.words_skipped = int(file.read())
 
-    def remove_feature(self, feature, save_dir):
+    def remove_feature(self, feature, representations_folder, layer, save_dir):
+        representations = np.load(str(Path(representations_folder).joinpath("representations.npy")))[layer, :, :]
+        with open(Path(representations_folder).joinpath("words_skipped.json"), "r", encoding="utf-8") as file:
+            words_skipped = int(file.read())
+
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        T = zscore(self.feature_getter.get_regression_targets(feature)[self.words_skipped:])
-        W = self.representations
+        T = zscore(self.feature_getter.get_regression_targets(feature)[words_skipped:])
+        W = representations
         logging.info(f"Feature remover got targets with {T.shape} and representations with {W.shape}")
 
         (weights, intercept), best_lambda = self.cross_val_ridge(X=T.reshape(-1, 1), Y=W, n_splits=10, lambdas=np.array([10**i for i in range(-6,10)]))
