@@ -15,13 +15,16 @@ class FeatureRemover(ABC):
     def __init__(self, words_file, representations_folder, layer):
         self.feature_getter = LinguisticFeatures(words_file)
         self.representations = np.load(str(Path(representations_folder).joinpath("representations.npy")))[layer, :, :]
+        with open(Path(representations_folder).joinpath("words_skipped.json"), "r", encoding="utf-8") as file:
+            self.words_skipped = int(file.read())
 
     def remove_feature(self, feature, save_dir):
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        T = zscore(self.feature_getter.get_regression_targets(feature))
+        T = zscore(self.feature_getter.get_regression_targets(feature)[self.words_skipped:])
         W = self.representations
+        logging.info(f"Feature remover got targets with {T.shape} and representations with {W.shape}")
 
         (weights, intercept), best_lambda = self.cross_val_ridge(X=T.reshape(-1, 1), Y=W, n_splits=10, lambdas=np.array([10**i for i in range(-6,10)]))
         with_removed_feature = W - np.dot(T.reshape(-1, 1), weights) - intercept
@@ -30,23 +33,24 @@ class FeatureRemover(ABC):
         return with_removed_feature
 
     def regression_find_lambda(self, X, Y, X_test, Y_test, lambdas):
+        logging.info(f"Feature Remover: shapes in cross-validation, train X {X.shape}, Y {Y.shape}, test X {X_test.shape}, Y {Y_test.shape}")
         error = []
         for idx, lmbda in enumerate(lambdas):
             model = Ridge(alpha=lmbda, fit_intercept=True, solver="cholesky")
             model.fit(X, Y)
             error.append(1 - r2_score(Y_test, model.predict(X_test)))
-        logging.info(f"Feature Remover: errors in regression: {error}")
+        logging.debug(f"Feature Remover: errors in regression: {error}")
         return np.array(error)
     
     def regression(self, X, Y, lmbda):
+        logging.info(f"Feature Remover: shapes in final regression X {X.shape}, Y {Y.shape}")
         model = Ridge(alpha=lmbda, fit_intercept=True, solver="cholesky")
         model.fit(X, Y)
-        print("coef shape", model.coef_.T.shape)
+        logging.info(f"Feature Remover: final coefs shape {model.coef_.T.shape}, {model.intercept_.shape}")
         return model.coef_.T, model.intercept_
     
     def cross_val_ridge(self, X, Y, n_splits, lambdas):
         errors_for_lambdas = np.zeros(lambdas.shape[0])
-        print("shapes in ridge", X.shape, Y.shape)
 
         kf = KFold(n_splits=n_splits)
         for trn, val in kf.split(Y):
@@ -55,7 +59,7 @@ class FeatureRemover(ABC):
             errors_for_lambdas += cost
 
         best_lambda = lambdas[np.argmin(errors_for_lambdas)]
-        logging.info(f"Feature Remover: beat lambda: {best_lambda}")
+        logging.info(f"Feature Remover: best lambda: {best_lambda}")
 
         weights, intercept = self.regression(X, Y, best_lambda)
 
