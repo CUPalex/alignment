@@ -28,12 +28,18 @@ class FeatureRemover(ABC):
         W = representations
         logging.info(f"Feature remover got targets with {T.shape} and representations with {W.shape}")
 
-        (weights, intercept), best_lambda = self.cross_val_ridge(X=T.reshape(-1, 1), Y=W, n_splits=10, lambdas=np.array([10**i for i in range(-6,10)]))
+        (weights, intercept), best_lambda = self.cross_val_ridge(X=T.reshape(-1, 1), Y=W, n_splits=4, lambdas=np.array([10**i for i in range(-5,5)]))
         with_removed_feature = W - np.dot(T.reshape(-1, 1), weights) - intercept
+
+        performance_before_removal = self.get_acc(X=W, Y=T, n_splits=4, n_folds=4, lambdas=np.array([10**i for i in range(-5,5)]))
+        performance_after_removal = self.get_acc(X=W, Y=T, n_splits=4, n_folds=4, lambdas=np.array([10**i for i in range(-5,5)]))
+        logging.info(f"Feature Remover: accuracy before: {performance_before_removal}, after: {performance_after_removal}")
 
         np.save(str(save_dir.joinpath("representations.npy")), with_removed_feature.reshape(-1, with_removed_feature.shape[0], with_removed_feature.shape[1]))
         with open(save_dir.joinpath("words_skipped.json"), "w", encoding="utf-8") as file:
             json.dump(words_skipped, file)
+        with open(save_dir.joinpath("performance.json"), "w", encoding="utf-8") as file:
+            json.dump({"before": performance_before_removal, "after": performance_after_removal}, file)
         return with_removed_feature
 
     def regression_find_lambda(self, X, Y, X_test, Y_test, lambdas):
@@ -53,6 +59,15 @@ class FeatureRemover(ABC):
         logging.info(f"Feature Remover: final coefs shape {model.coef_.T.shape}, {model.intercept_.shape}")
         return model.coef_.T, model.intercept_
     
+    def get_acc(self, X, Y, n_splits, n_folds, lambdas):
+        acc = 0
+        kf = KFold(n_splits=n_folds)
+        for trn, val in kf.split(Y):
+            (weights, intercept), best_lambda = self.cross_val_ridge(
+                X[trn], Y[trn], n_splits, lambdas)
+            acc += (np.dot(X[val], weights) + intercept == Y[val]).sum()
+        return acc / Y.shape[0]
+
     def cross_val_ridge(self, X, Y, n_splits, lambdas):
         errors_for_lambdas = np.zeros(lambdas.shape[0])
 
