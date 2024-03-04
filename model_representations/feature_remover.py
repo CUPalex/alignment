@@ -24,7 +24,7 @@ class FeatureRemover(ABC):
         save_dir = Path(save_dir)
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        T = zscore(self.feature_getter.get_regression_targets(feature)[words_skipped:])
+        T = self.feature_getter.get_regression_targets(feature)[words_skipped:]
         W = representations
         logging.info(f"Feature remover got targets with {T.shape} and representations with {W.shape}")
 
