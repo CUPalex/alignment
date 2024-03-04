@@ -1,6 +1,7 @@
 from abc import ABC
 import logging
 from pathlib import Path
+import json
 
 from sklearn.metrics import r2_score
 from sklearn.linear_model import Ridge
@@ -30,7 +31,9 @@ class FeatureRemover(ABC):
         (weights, intercept), best_lambda = self.cross_val_ridge(X=T.reshape(-1, 1), Y=W, n_splits=10, lambdas=np.array([10**i for i in range(-6,10)]))
         with_removed_feature = W - np.dot(T.reshape(-1, 1), weights) - intercept
 
-        np.save(str(save_dir.joinpath(f"removed_feature-{feature}.npy")), with_removed_feature)
+        np.save(str(save_dir.joinpath("representations.npy")), with_removed_feature.reshape(-1, with_removed_feature.shape[0], with_removed_feature.shape[1]))
+        with open(save_dir.joinpath("words_skipped.json"), "w", encoding="utf-8") as file:
+            json.dump(words_skipped, file)
         return with_removed_feature
 
     def regression_find_lambda(self, X, Y, X_test, Y_test, lambdas):
