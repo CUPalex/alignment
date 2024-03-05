@@ -22,6 +22,12 @@ conda env create -f environment.yml
 
 ## :egg: Usage
 
+To compute the brain alignment scores for initial model representations, refer to ```run_all.py``` file.
+
+To compute the alignment with residual representations with removed linguistic features, refer to ```feature_removal.py``` file.
+
+To download the data from gdrive, refer to ```data/download_data.py``` file.
+
 
 ## :egg: Files structure
 
@@ -36,11 +42,11 @@ conda env create -f environment.yml
 │   ├── feature_remover.py # used to remove linguistic features from model representations
 │   ├── linguistic_features.py # used to calculate linguistic features for words
 │   └── model_representations.py # used to get model representations for words
+├── feature_removal.py
+├── run_all.py
 ├── environment.yml
 └── README.md
 ```
-
-## :egg: Development
 
 ## :egg: Licence
 MIT
