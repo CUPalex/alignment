@@ -5,6 +5,7 @@ import json
 
 from sklearn.metrics import r2_score
 from sklearn.linear_model import Ridge
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import KFold
 from scipy.stats import zscore
 import numpy as np
@@ -27,12 +28,13 @@ class FeatureRemover(ABC):
         T = self.feature_getter.get_regression_targets(feature)[words_skipped:]
         W = representations
         logging.info(f"Feature remover got targets with {T.shape} and representations with {W.shape}")
+        logging.info(f"Feature remover targets {T}")
 
-        (weights, intercept), best_lambda = self.cross_val_ridge(X=T.reshape(-1, 1), Y=W, n_splits=4, lambdas=np.array([10**i for i in range(-5,5)]))
+        (weights, intercept), best_lambda = self.cross_val_ridge(X=T.reshape(-1, 1), Y=W, n_splits=4, lambdas=np.array([10**i for i in range(-3,6)]))
         with_removed_feature = W - np.dot(T.reshape(-1, 1), weights) - intercept
 
-        performance_before_removal = self.get_acc(X=W, Y=T, n_splits=4, n_folds=4, lambdas=np.array([10**i for i in range(-5,5)]))
-        performance_after_removal = self.get_acc(X=W, Y=T, n_splits=4, n_folds=4, lambdas=np.array([10**i for i in range(-5,5)]))
+        performance_before_removal = self.get_acc(X=W, Y=T, n_splits=4, n_folds=4, lambdas=np.array([10**i for i in range(-3,1)]))
+        performance_after_removal = self.get_acc(X=with_removed_feature, Y=T, n_splits=4, n_folds=4, lambdas=np.array([10**i for i in range(-3,1)]))
         logging.info(f"Feature Remover: accuracy before: {performance_before_removal}, after: {performance_after_removal}")
 
         np.save(str(save_dir.joinpath("representations.npy")), with_removed_feature.reshape(-1, with_removed_feature.shape[0], with_removed_feature.shape[1]))
@@ -58,15 +60,6 @@ class FeatureRemover(ABC):
         model.fit(X, Y)
         logging.info(f"Feature Remover: final coefs shape {model.coef_.T.shape}, {model.intercept_.shape}")
         return model.coef_.T, model.intercept_
-    
-    def get_acc(self, X, Y, n_splits, n_folds, lambdas):
-        acc = 0
-        kf = KFold(n_splits=n_folds)
-        for trn, val in kf.split(Y):
-            (weights, intercept), best_lambda = self.cross_val_ridge(
-                X[trn], Y[trn], n_splits, lambdas)
-            acc += (np.dot(X[val], weights) + intercept == Y[val]).sum()
-        return acc / Y.shape[0]
 
     def cross_val_ridge(self, X, Y, n_splits, lambdas):
         errors_for_lambdas = np.zeros(lambdas.shape[0])
@@ -83,3 +76,44 @@ class FeatureRemover(ABC):
         weights, intercept = self.regression(X, Y, best_lambda)
 
         return (weights, intercept), best_lambda
+    
+    def get_acc(self, X, Y, n_splits, n_folds, lambdas):
+        acc = 0
+        kf = KFold(n_splits=n_folds)
+        for trn, val in kf.split(Y):
+            model, best_lambda = self.cross_val_logistic(
+                X[trn], Y[trn], n_splits, lambdas)
+            acc += (model.predict(X[val]) == Y[val]).sum()
+        return acc / Y.shape[0]
+    
+    def logistic_regression_find_lambda(self, X, Y, X_test, Y_test, lambdas):
+        logging.info(f"Feature Remover: shapes in cross-validation, train X {X.shape}, Y {Y.shape}, test X {X_test.shape}, Y {Y_test.shape}")
+        error = []
+        for idx, lmbda in enumerate(lambdas):
+            model = LogisticRegression(C=lmbda, fit_intercept=True, random_state=42)
+            model.fit(X, Y)
+            error.append(1 - (Y_test == model.predict(X_test)).mean())
+        logging.debug(f"Feature Remover: errors in regression: {error}")
+        return np.array(error)
+    
+    def logistic_regression(self, X, Y, lmbda):
+        logging.info(f"Feature Remover: shapes in final regression X {X.shape}, Y {Y.shape}")
+        model = LogisticRegression(C=lmbda, fit_intercept=True, random_state=42, max_iter=1000)
+        model.fit(X, Y)
+        return model
+    
+    def cross_val_logistic(self, X, Y, n_splits, lambdas):
+        errors_for_lambdas = np.zeros(lambdas.shape[0])
+
+        kf = KFold(n_splits=n_splits)
+        for trn, val in kf.split(Y):
+            cost = self.logistic_regression_find_lambda(
+                X[trn], Y[trn], X[val], Y[val], lambdas=lambdas)
+            errors_for_lambdas += cost
+
+        best_lambda = lambdas[np.argmin(errors_for_lambdas)]
+        logging.info(f"Feature Remover: best lambda: {best_lambda}")
+
+        best_model = self.logistic_regression(X, Y, best_lambda)
+
+        return best_model, best_lambda
