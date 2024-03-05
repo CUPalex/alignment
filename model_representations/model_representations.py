@@ -49,6 +49,20 @@ class ModelRepresentations(ABC):
         logging.info(f"Created model and tokenizer from step {self.model_step} on device {self.device} with context {self.context_len}")
 
     @torch.inference_mode()
+    def get_model_perplexity(self, words):
+        perplexity = 0
+        text = " ".join(words)
+        inputs = self.tokenizer(text, return_tensors="pt")
+        for next_token in range(self.context_len, inputs["input_ids"].shape[1]):
+            target = inputs["input_ids"][:, next_token].to(self.device)
+            inputs_truncated_input_ids = inputs["input_ids"][:, next_token - self.context_len:next_token].to(self.device)
+            inputs_truncated_attention_mask = inputs["attention_mask"][:, next_token - self.context_len:next_token].to(self.device)
+            output = self.model(input_ids=inputs_truncated_input_ids,
+                                    attention_mask=inputs_truncated_attention_mask)
+            perplexity += torch.log(torch.nn.functional.softmax(output.logits[0, -1, :], dim=-1)[target]).sum()
+        return perplexity
+
+    @torch.inference_mode()
     def get_model_layer_representations(self, words):
         if self.save_dir.joinpath("representations.npy").exists() and self.save_dir.joinpath("words_skipped.json").exists():
             logging.info("Returning saved representations")
