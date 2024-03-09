@@ -14,14 +14,15 @@ class LinguisticFeatures(ABC):
     WORD_LEVEL_FEATURES = ["pos_tags", "smallest_constituents", "word_depth"]
     ALL_FEATURES = SENT_LEVEL_FEATURES + RANDOM + WORD_LEVEL_FEATURES
 
-    def __init__(self, words_file="/proj/inductive-bias.shadow/abakalov.data/words_fmri.npy"):
+    def __init__(self, words_file="/proj/inductive-bias.shadow/abakalov.data/words_fmri.npy",
+                 cache_dir="/proj/inductive-bias.shadow/abakalov.trash"):
         nltk.download("punkt")
 
         self.words = np.load(words_file)
         self.text = " ".join(self.words)
         self.text_tokenized = [sent.split() for sent in sent_tokenize(self.text)]
         nlp = stanza.Pipeline('en', processors='tokenize,mwt,pos,lemma,depparse,constituency',
-                              dir="/proj/inductive-bias.shadow/abakalov.trash", use_gpu=False, tokenize_pretokenized=True)
+                              dir=cache_dir, use_gpu=False, tokenize_pretokenized=True)
         self.parsed_text = nlp(self.text_tokenized)
 
     @staticmethod

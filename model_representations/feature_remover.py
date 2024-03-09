@@ -14,8 +14,8 @@ from alignment.model_representations.linguistic_features import LinguisticFeatur
 from alignment.model_representations.model_representations import ModelRepresentations
 
 class FeatureRemover(ABC):
-    def __init__(self, words_file):
-        self.feature_getter = LinguisticFeatures(words_file)
+    def __init__(self, words_file, cache_dir):
+        self.feature_getter = LinguisticFeatures(words_file, cache_dir)
 
     def remove_feature(self, feature, representations_folder, layer, save_dir):
         representations = np.load(str(Path(representations_folder).joinpath("representations.npy")))[layer, :, :]
