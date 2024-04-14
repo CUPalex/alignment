@@ -6,7 +6,7 @@ In this project we used:
 - [160M-parameter model from Pythia family](https://huggingface.co/EleutherAI/pythia-160m) as the LLM
 - [Harry Potter reading dataset](http://www.cs.cmu.edu/~fmri/plosone/) as the human brain data. We used the already preprocessed version available on [gdrive](https://drive.google.com/drive/folders/1Q6zVCAJtKuLOh-zWpkS3lH8LBvHcEOE8).
 
-The results of the work are not completed yet, they will be linked as a pdf file to this repository later.
+The results of the work are presented in the ```dynamics_of_human_llm_alignment.pdf``` file in the root of the repository.
 
 ## :egg: Installation
 
@@ -44,6 +44,7 @@ To download the data from gdrive, refer to ```data/download_data.py``` file.
 │   └── model_representations.py # used to get model representations for words
 ├── feature_removal.py
 ├── run_all.py
+├── dynamics_of_human_llm_alignment.pdf
 ├── environment.yml
 └── README.md
 ```
